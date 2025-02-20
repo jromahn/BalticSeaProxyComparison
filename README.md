@@ -12,7 +12,8 @@ library(caret)
 library(mgcv)
 
 # taxonomy
-library(taxonomizr) # assigning ID to taxonomy
+library(taxonomizr) # assigning NCBI ID to taxonomy
+library(worrms)
 
 #plotting
 library(ggpubr)
