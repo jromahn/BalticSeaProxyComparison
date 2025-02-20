@@ -63,9 +63,9 @@ Input:
 - 8_PhytoArk_Euka02_2024_final__community__MUC.RData
 
 Output:
--8_PhytoArk_euka_OT4_final__community_cleaned_community_data.RData # community matrix in RData format
--8_PhytoArk_euka_OT4_final__community_cleaned_matrix.csv           # community matrix in csv format
--8_PhytoArk_euka_OT4_final__community_cleaned_Cleaning_Stats.csv   # overview ASV and read number statistics for every cleaning step
+- 8_PhytoArk_euka_OT4_final__community_cleaned_community_data.RData # community matrix in RData format
+- 8_PhytoArk_euka_OT4_final__community_cleaned_matrix.csv           # community matrix in csv format
+- 8_PhytoArk_euka_OT4_final__community_cleaned_Cleaning_Stats.csv   # overview ASV and read number statistics for every cleaning step
 
 
 ###  07_preproccessing_monitoring.R
