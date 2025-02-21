@@ -24,13 +24,16 @@ library(ggExtra)
 library(nord)
 library(Manu)
 ```
-## Provided metadata
+## Necessary metadata in FigShare
 
-- EMB262_PhytoArk_MUC__detailed_metadata.tsv
-- Supplementary_Biomarker_data_GoF_EGB.tsv
-- 8_PhytoArk_Euka02_2024_final__community__MUC.RData
-- 8_PhytoArk_Euka02_2024_final__mothur_sequences.fasta
-- 8_PhytoArk_Euka02_2024_final__mothur_sequences.0_SSU_mothur.wang.tx
+| Filname in R Script  | FigShare DOI |
+| ------------- | ------------- |
+| EMB262_PhytoArk_MUC__detailed_metadata.tsv  | 10.6084/m9.figshare.28457471  |
+| Supplementary_Biomarker_data_GoF_EGB.tsv  | 10.6084/m9.figshare.28457492  |
+| 8_PhytoArk_Euka02_2024_final__community__MUC.RData | 10.6084/m9.figshare.28457474 | 
+| 8_PhytoArk_Euka02_2024_final_community_MUC__mothur_sequences.fasta | 10.6084/m9.figshare.28457495 |
+| 8_PhytoArk_Euka02_2024_final_community_MUC__mothur_sequences.0_SSU_mothur__concatinated.wang__tax.tx | 10.6084/m9.figshare.28457483 |
+
 
 ## Script Overview 
 
