@@ -6,6 +6,7 @@
 library(tidyverse)
 library(vegan)
 library(knitr)
+library(phylotools)
 
 # modeling
 library(caret)
