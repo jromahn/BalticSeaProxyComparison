@@ -1,4 +1,4 @@
-#setwd("/home/jromahn/PHYTOARK_final_metabarcoding")
+#setwd("/PATH/TO/02_Scripts_folder")
 
 library(tidyverse)
 library(stringr)
