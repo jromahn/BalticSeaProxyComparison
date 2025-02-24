@@ -1,0 +1,323 @@
+---
+title: Diagnosis script fro ObiTools4 for Euka02
+author: Juliane Romahn
+date: September 14, 2023
+output: html_document
+---
+
+
+```{r}
+rm(list = ls())
+library(tidyverse)
+library(vegan)
+library(knitr)
+```
+
+
+```{r setup}
+# has to be in setup & is only correct outside of the setup
+require("knitr")
+opts_knit$set(root.dir = '/Users/juliane/Documents/00_Work_SGN/00_PhytoArk/XX_PAPERS/2025_Comparison_Paper__relAbudance')
+```
+
+```{r}
+
+source("02_Scripts/00_R_functions.R") # read file with functions
+path <- "/Users/juliane/Documents/00_Work_SGN/00_PhytoArk/02_Metabarcoding/Bioinformatic_ObiTools4/PhytoArk_Euka02_2024_MUC_results"
+community_file <- "8_PhytoArk_Euka02_2024_final__community__MUC.RData"
+
+# metadata
+meta_path <-"03_metadata_final"
+meta_file <- "EMB262_PhytoArk_MUC__detailed_metadata.tsv"
+meta_data <- read.table(file.path(meta_path, meta_file), sep="\t", header=T)%>%
+        rename("depth"="core.depth.cm.")%>%
+        rename("station"="core.location")
+
+
+
+load(file=file.path(path, community_file)) # has to be names commnity
+
+```
+
+
+
+```{r}
+
+no.replicates <- 4
+
+output_folder <- "02_intermediate"
+output_fileformat <- "8_PhytoArk_euka_OT4_final__community_cleaned"
+if (!dir.exists(output_folder)){ dir.create(output_folder) }
+```
+
+# input <- ASVs  as rows and samples as columns
+### Setting control
+
+```{r}
+## Extraction controls
+extraction_control ="EN_"
+## PCR controls
+PCR_control = "PN_"
+## Multiplexing controls
+multiplexing_control = "MN_"
+## Positive controls
+positive_control = "PP_"
+
+sample_grep ="PHY23_"
+
+```
+
+
+```{r}
+
+total.reads <- rowSums(community)
+total.asvs <- rowSums(1*(community>0))
+community$replicate <- rownames(community)
+community$sample_id <- gsub("_R.*", "", community$replicate)
+
+
+unique(meta_data$station)
+
+station_stats <- data.frame(sample_id = community$sample_id,total.reads = total.reads, total.asvs=total.asvs )%>%
+      left_join(meta_data %>% select(tag, station, depth,new_sample_id),by =c("sample_id"="new_sample_id" ))
+  
+ggplot(station_stats, aes(x=as.factor(depth), y= total.reads))+ geom_boxplot() + facet_wrap(~station, scales = "free_x")+ scale_y_continuous(trans='log2')
+
+
+station_stats %>% group_by(station)%>%
+  dplyr::summarise(samples_withRepl= n(),samples_withoutRepl= n()/no.replicates )
+```
+
+
+```{r}
+community$sample_id <- NULL; community$replicate <- NULL
+data <- as.data.frame(t(community)) # col - samples, rows - asvs
+rm(community)  
+
+## stats
+stats_data <- data.frame()
+stat <- community_stats(data, "After ObiTools")
+stats_data <- rbind(stats_data,stat)
+
+
+```
+
+```{r}
+
+###
+index_positive <- grep(positive_control, colnames(data))
+index_extraction <- grep(extraction_control, colnames(data))
+index_pcr <- grep(PCR_control, colnames(data))
+index_multipl <-  grep(multiplexing_control, colnames(data))
+
+index_just_samples <- grep(sample_grep, colnames(data))
+
+```
+
+
+
+###############################################
+# Diagnostic plots ####
+Fred 1. Frequency distribution of read numbers in **ASVs**
+This step defines a rarity threshold for **ASVs**
+A sequence variant with less, than 120 sequences is considered as rare.
+
+```{r}
+
+reads_per_seq_variant <- apply(data,1,sum)
+rarity_threshold <- sum(reads_per_seq_variant)*0.0000002
+print(rarity_threshold)
+
+freq_table = data.frame(table(reads_per_seq_variant))
+freq_table$reads_per_seq_variant <- 
+  as.vector(freq_table$reads_per_seq_variant)
+plot(freq_table, log = c("xy"),main="Frequency distribution of read numbers in ASVs", 
+     xlab = c("Read count in ASV")) +
+  abline(v =rarity_threshold, col="red")
+
+## just keep the not rare ESVs
+index_rare_sequence = apply(data,1,sum) >= rarity_threshold
+summary(index_rare_sequence)
+
+
+apply(data[index_rare_sequence,],1,sum) %>% summary
+apply(data[!index_rare_sequence,],1,sum) %>% summary
+
+
+stat <- community_stats(data[index_rare_sequence,], "Remove rare OTUs")
+stats_data <- rbind(stats_data,stat)
+```
+
+#######################################
+# This defines a rarity threshold for **samples**
+ There are some samples in which there are weirdly few reads 
+
+```{r}
+
+low_reads_threshold <- 100000
+
+sample_reads <- apply(data,2,sum) # MARGIN=2 for every column
+sample_reads <- data.frame(sample_reads)
+sample_reads$reads <- rownames(sample_reads)
+### grouping of samples
+sample_reads[index_extraction,]$reads <- "Extraction control"
+sample_reads[index_pcr,]$reads <- "PCR control"
+sample_reads[index_positive,]$reads <- "Positive control"
+sample_reads[index_multipl,]$reads <- "Multiplexing control"
+sample_reads[index_just_samples,]$reads <- "Sample"
+
+ggplot(sample_reads, aes(x=sample_reads, fill=reads)) + #
+  geom_histogram(  color="#e9ecef", alpha=0.8, position = 'identity') + # binwidth=0.1,
+  #theme_ipsum() +
+  labs(fill="")+
+  geom_vline(xintercept=low_reads_threshold, color = "red") +
+  scale_x_log10(labels = scales::comma)
+
+intervals <- cut(sample_reads$sample_reads, 
+                 breaks=seq(from=0, to = max(sample_reads$sample_reads), by = 10000))
+#table(intervals)
+
+
+index_small_replicate = apply(data,2,sum) >= low_reads_threshold
+summary(index_small_replicate)
+
+apply(data[,index_small_replicate],2,sum) %>% summary
+apply(data[,index_small_replicate],2,sum) %>% summary
+
+
+stat <- community_stats(data[,index_small_replicate], "Remove rare replicates")
+stats_data <- rbind(stats_data,stat)
+```
+#subtract maximum reads of each AVS found in the negative controls from each sample
+```{r}
+max_in_negative <- apply(data[,c(index_extraction,index_pcr,index_multipl,index_positive)], 1, max)
+
+neg_controlled <- sweep(data, 1, max_in_negative, "-") 
+neg_controlled[neg_controlled < 0] <- 0
+
+
+
+#stats
+stat <- community_stats(neg_controlled, "Remove just Controls")
+stats_data <- rbind(stats_data,stat)
+#
+stat <- community_stats(data[,index_extraction], "Within extraction negative controls")
+stats_data <- rbind(stats_data,stat)
+#
+stat <- community_stats(data[,index_multipl], "Within multiplex negative controls")
+stats_data <- rbind(stats_data,stat)
+#
+stat <- community_stats(data[,index_pcr], "Within PCR negative controls")
+stats_data <- rbind(stats_data,stat)
+#
+stat <- community_stats(data[,c(index_extraction, index_pcr, index_multipl)], "Within all negative controls")
+stats_data <- rbind(stats_data,stat)
+#
+stat <- community_stats(data[,index_positive], "Within positive controls")
+stats_data <- rbind(stats_data,stat)
+
+rm(data)
+
+neg_controlled <- neg_controlled[index_rare_sequence,index_small_replicate]
+
+stat <- community_stats(neg_controlled, "Remove Controls & rare OTUs & replicates with low read number")
+stats_data <- rbind(stats_data,stat)
+#
+
+index <- grep(sample_grep, colnames(neg_controlled))
+apply(neg_controlled[,index], 2, sum) %>% summary  ## columns # reads
+apply(neg_controlled[,index], 1, sum) %>% summary ## rows # asv
+
+
+```
+
+```{r}
+neg_controlled <- neg_controlled[,index]
+
+neg_controlled <- data.frame(t(neg_controlled))
+
+neg_controlled$replicate <- rownames(neg_controlled)
+neg_controlled$sample_id <- gsub("_R.*", "", neg_controlled$replicate )
+
+final_data <- meta_data %>% select(tag,station,depth,new_sample_id)%>%
+        right_join(neg_controlled, by= c("new_sample_id"="sample_id"))%>%
+        rename("sample_id"="new_sample_id")
+length(unique(meta_data$station))
+unique(final_data$station)
+
+final_data$total_reads <- rowSums(final_data[, grep("ASV", names(final_data))])
+unique(neg_controlled$sample_id [!neg_controlled$sample_id %in% final_data$sample_id])
+
+
+sum.final_data <- final_data %>%
+  group_by(station, tag) %>%
+  dplyr::summarise(rep = sum(1*(total_reads>0)),
+            total.reads = sum(total_reads),
+            av.reads = mean(total_reads),
+            std.reads = sd(total_reads)) 
+
+
+rm(neg_controlled)
+
+# remove samples with low replicate number
+samples_final <- sum.final_data$tag[sum.final_data$rep >= 0.6 * no.replicates]
+samples_removed <- sum.final_data$tag[!sum.final_data$rep >= 0.6 * no.replicates]
+
+print("")
+print("Removed samples")
+print(samples_removed)
+
+final_data <- final_data[ final_data$tag %in% samples_final,]
+#
+stat <- community_stats(t(final_data[, grep("ASV", names(final_data))]), "Final with removed samples because of low replicate numer (<0.6 of total)")
+stats_data <- rbind(stats_data,stat)
+
+save(final_data, file=file.path(output_folder, paste(output_fileformat, "community_data.RData", sep="__")))
+write.csv(final_data, file=file.path(output_folder, paste(output_fileformat, "matrix.csv", sep="__")), row.names = F)
+write.csv(stats_data, file=file.path(output_folder, paste(output_fileformat, "Cleaning_Stats.csv", sep="__")), row.names = F)
+
+```
+##check samples if they still have a weird community composition
+```{r}
+set.seed(25)
+length(unique(final_data$replicate ))
+length(final_data$replicate )
+
+rownames(final_data)<- final_data$replicate 
+bray_data <- metaMDS(final_data[,grep("ASV", names(final_data))])
+nmds <- plot_simpleNDMS_color(bray_data, final_data,  "station", "replicate")
+
+nmds[[2]] <- nmds[[2]] + labs(title = "Similarity between the replicates grouped after core")
+print(nmds[[2]])
+
+# remove sample
+points <- bray_data$points
+#final_data <- final_data %>% filter(replicate !="PA206E_R03")
+
+bray_data <- metaMDS(final_data[,grep("ASV", names(final_data))])
+nmds <- plot_simpleNDMS_color(bray_data, final_data,  "station", "replicate")
+
+nmds[[2]] <- nmds[[2]] + labs(title = "Similarity between the replicates grouped after tag")+ theme(legend.position = "None")
+print(nmds[[2]])
+
+```
+#stats per location
+```{r}
+df_stats_new <- final_data %>% group_by(station)%>% dplyr::summarise(replicates= n(), samples= length(unique(tag)), total.reads= sum(total_reads))
+
+df <- data.frame()
+for( loc in unique(final_data$station)){
+  small <- final_data %>% filter( station == loc)
+  asv <- sum(1* (apply(small[,grep("ASV", names(small))]>0,2,sum)>0))
+  df <- rbind( df, data.frame( station = loc, richness= asv))
+}
+
+merge(df_stats_new, df, by ="station")
+
+small <- final_data %>% filter( grepl("MUC", station))
+asv <- sum(1* (apply(small[,grep("ASV", names(small))]>0,2,sum)>0))
+reads <- sum(small$total_reads)
+print(paste("ASVs in MUC", asv, "; total reads", reads))
+
+```
+

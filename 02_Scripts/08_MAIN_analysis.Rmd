@@ -1,0 +1,660 @@
+---
+title: "Analyses of archive & monitoring data "
+subtitle: "MUC GoF & Gotland & Landsort"
+author: "Juliane Romahn"
+date: "07.12.23"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+editor_options:
+  chunk_output_type: inline
+papersize: a4
+---
+
+```{r}
+rm(list = ls())
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+#library(viridis)
+library(nord)
+# install.packages("devtools")
+#devtools::install_github("G-Thomson/Manu")
+library(Manu)
+#library(gapminder) 
+```
+
+#load input data and prepare output
+
+
+```{r setup}
+# has to be in setup & is only correct outside of the setup
+knitr::opts_knit$set(root.dir = '/Users/juliane/Documents/00_Work_SGN/00_PhytoArk/XX_PAPERS/2025_Comparison_Paper__relAbudance/')
+getwd()
+```
+
+```{r}
+source("02_Scripts/00_R_functions.R") # read file with functions
+
+# input path of community & biomonitoring data
+input_path <-"02_intermediate"
+metadata_path <- "03_metadata_final"
+
+#load biomonitoring data
+load(file=file.path(input_path,"ICES_phytodata_with_worms_EMB262MUCs__SprSum.RData"))
+ices_data <- muc_ICES_data
+rm(muc_ICES_data)
+
+#load community and taxonomy
+#load( file=file.path(input_path_seda,"sedaDNA_taxonomy_eukaryotes_cleaned.RData"))
+load(file=file.path(input_path,"sedaDNA_community_eukaryotes_normed500_transformed.RData"))
+seda_community <- seda_community_sum%>%ungroup() %>% mutate(sample_id=NULL)
+rm(seda_community_sum)
+unique(gsub("C.*", "C",seda_community$tag))
+
+#load toc (überarbeiten, veraltete datei)
+meta_file <- file.path(input_path,"EMB262_PhytoArk_MUC__detailed_metadata_samples.tsv")
+TOC_data <- read.table(meta_file, sep="\t", header=T)
+TOC_data <- TOC_data[,c("station", "depth", "age" ,"TOC")]
+colnames(TOC_data) <- c("station","depth", "Year_CE","TOC")
+TOC_data <- TOC_data %>% filter(! is.na(station)) %>% filter(station != "EMB262_3_10_MUC")
+
+#load biomarkers 
+
+egb_gof_biomarker <- read.table( file=file.path(metadata_path,"Supplementary_Biomarker_data_GoF_EGB.tsv"), header=T, sep="\t")
+egb_gof_biomarker <- egb_gof_biomarker[,grep("^C\\d|Dino*|age|location", colnames(egb_gof_biomarker))]
+
+```
+
+
+## create output paths
+```{r}
+workspace <- "04_workspace_2025"
+output_path <- "04_results_2025"
+output_path_extra <- file.path(output_path, "suppl")
+
+if (!dir.exists(output_path)){ dir.create(output_path) }
+if (!dir.exists(output_path_extra)){ dir.create(output_path_extra) }
+if (!dir.exists(workspace)){ dir.create(workspace) }
+
+```
+
+#plot TOC data
+```{r}
+plot <- TOC_data%>% 
+  mutate(location = ifelse(station == "EMB262_6_28_MUC", "Eastern Gotland Basin",
+                    ifelse(station == "EMB262_13_8_MUC","Landsort Deep", "Gulf of Finland")))%>% 
+  ggplot(aes(x= as.numeric(Year_CE), y= TOC))+ 
+  geom_line()+facet_wrap(~location, scale="free_x")+ labs(x= "Years CE", y= "TOC in %")+ 
+  figure_theme
+
+print(plot)
+ggsave(plot, file=file.path(output_path_extra, "MUC__TOC_values_over_time.png"),height=5, width=14)
+ggsave(plot, file=file.path(output_path_extra, "MUC__TOC_values_over_time.tiff"),height=5, width=14, dpi=600)
+
+TOC_data$Year_CE <- NULL
+```
+
+
+#define main figure layout
+## approach colors
+```{r}
+## approach colors
+hoiho2 <-c("#44781E","#1F59C7", "#9ABBD5", "#746455")
+print_pal(hoiho2)
+```
+
+## eukaryotic colors
+```{r}
+#colors for eukaryotic
+selected_colours <- c("#2B4B3C","#7D9D33", "#CED38C", "#DCC949", "#BCA888", "#CD8862", "#775B24") #
+
+eukaryote <- c("#2B4B3C","#719134" ,"#B6C372" , "#BF964AFF", 
+               "#C09E7D", "#F7C145FF","#1F6683", "#6A5557")
+
+hoiho<- colorRampPalette(selected_colours)(8)
+print_pal(hoiho)
+print_pal(eukaryote)
+#eukaryotic major communities
+euka_taxonomic_groups <- c("Streptophyta","Phytoplankton","Macroalgae", "Fungi", 
+                           "Rhizaria",  "Metazoa", "Opalozoa", "Other Protists",
+                           "Unassigned") #n=8
+euka_colors_taxo <- c(eukaryote, "darkgrey")
+```
+
+## define colors phytoplankton
+```{r}
+
+##phytoplankton -> not interested in Bacillariophyta
+beyonce <- c( "#491C09FF", "#722D19FF", "#A54E21FF", "#CC842AFF", "#E7A92FFF", "#DFB54DFF", "#DDB855FF", "#F2E488FF")
+greenish <- c( "#193E44FF", "#539E59FF", "#84C876FF", "#BBD961FF", "#F5EC54FF")
+greenish<- colorRampPalette(greenish)(6)
+taxonomic_groups <- c("Charophyta" ,"Chlorophyta" ,"Cryptophyta" ,"Haptophyta","Dinoflagellata" ,"Ochrophyta") 
+colors_taxo <- greenish
+
+```
+
+# Prepare datasets
+## Prepare biomarker data
+```{r}
+colnames(egb_gof_biomarker)
+egb_gof_biomarker <- egb_gof_biomarker %>% 
+        mutate(interval = cut(as.integer(age), breaks = seq(1835, 2025, by = 5), right = FALSE))
+
+interval_egb_gof_biomarker <- egb_gof_biomarker %>% pivot_longer(!c(age, location, interval), names_to = "method", values_to = "values")%>%
+  group_by(location, interval, method) %>% summarise(av_value = mean(values)) %>% na.omit() %>% 
+  mutate(organism = ifelse(grepl("Dino", method),"Dinoflagellata", "Phytoplankton" ))
+
+```
+
+## Prepare Biomonitoring data
+
+```{r}
+
+filtered_ices_data <- ices_data %>%
+        mutate( phylum = gsub("Myzozoa", "Dinoflagellata", phylum))%>%
+        filter(phylum!="Cyanobacteria")%>% 
+        filter(phylum != "Bacillariophyta")
+```
+
+
+```{r}
+# average daily data
+averaged_ices_data <- filtered_ices_data %>%
+  group_by(MUC, Year, Month, AphiaID, phylum, order, family,genus, WoRMS_name, AphiaID_accepted)%>%
+  summarise(averaged_value= mean(final_value), 
+            median_value = median(final_value))
+
+#average monthly data
+summed_ices_data <- averaged_ices_data %>%
+  group_by(MUC, Year,  phylum)%>%
+  summarise(summed_value= sum(averaged_value)) 
+
+#summarize data for plotting
+plot_summed <- summed_ices_data %>% 
+    pivot_wider(names_from = Year, values_from = summed_value, values_fill = 0)%>%
+    pivot_longer(!c(MUC,  phylum), names_to = "Year", values_to = "summed_value") %>%
+    group_by(MUC, Year)%>% ## remove 0 for years were just the record is missing
+    filter(sum(summed_value) >0)
+
+plot_supp_moni1 <- ggplot(plot_summed, aes(x= as.numeric(Year), y= summed_value, fill= phylum, group =phylum))+
+    geom_area(color="grey25", size=0.1) + facet_wrap(~MUC, scales = "free") + figure_theme+
+    labs(title="Biomonitoring data", x= "Years CE", y= "Count", fill="Phylum")+ 
+    scale_fill_manual(breaks = taxonomic_groups,
+                        values=colors_taxo)+
+   scale_x_continuous(breaks = seq(1980, 2020, 5))
+
+print(plot_supp_moni1)
+#ggsave(plot_supp_moni1, file=file.path(output_path_extra, "biomonitoring_yearly_phytoplankton_over_time.png"), height=8, width=17)
+
+
+moni_time <- plot_summed %>% group_by( MUC) %>% summarise(start=min(Year))
+```
+
+### Dinoflagellate data biomonitoring
+```{r}
+averaged_dino_data <- averaged_ices_data %>%
+  filter(phylum =="Dinoflagellata")%>%
+  group_by(MUC, Year,  phylum, order, family)%>%
+  summarise(summed_value= sum(averaged_value))
+
+plot_supp_moni2 <-averaged_dino_data%>%
+  group_by(MUC, Year,  phylum, order)%>%
+  summarise(summed_value= sum(summed_value)) %>%
+  pivot_wider( names_from = "Year", values_from = "summed_value", values_fill=0)%>%
+  pivot_longer(!c(MUC,phylum,order),names_to = "Year", values_to = "summed_value")%>%
+  mutate(order= gsub("0", "NA", order))%>%
+  ggplot( aes(x= as.numeric(Year), y= summed_value, fill= order, group =order))+
+    geom_area() + facet_wrap(~MUC, scales = "free") + figure_theme+
+    geom_vline(xintercept=2000, size= 0.7,linetype="dashed")+
+    labs(title="Dinoflagellate community composition April to June", x= "Years CE", y= "Norm. counting data", fill= "Order")+ 
+    scale_x_continuous(breaks = seq(min(averaged_dino_data$Year), max(averaged_dino_data$Year), 10))+
+    scale_fill_viridis_d( option="magma")
+print(plot_supp_moni2)
+ggsave(plot_supp_moni2, file=file.path(output_path_extra, "Monitoring__dinoflagellate_community_composition__orderLevel_yearly.png"), height=8, width=16)
+ggsave(plot_supp_moni2, file=file.path(output_path_extra, "Monitoring__dinoflagellate_community_composition__orderLevel_yearly.tiff"), height=8, width=16, dpi=600)
+```
+
+
+## Prepare Metabarcoding data
+
+```{r}
+#sum all reads for every replicate and average total reads of the replicates
+total.reads <-seda_community %>%
+        group_by(station, location, tag, replicate,depth, age)%>%
+        summarise(total.reads.repl = sum(reads)) %>%
+        #mean replicates
+        group_by(station, location,  depth, age)%>%
+        summarise(total.reads = mean(total.reads.repl)) %>%
+        ungroup()
+
+
+total.reads <-merge(total.reads, TOC_data, by = c("depth", "station"), all =T)%>% unique()
+
+## calulcate the mean for every sample the average read number to average the replicates
+seda_community.final <- seda_community %>%
+        group_by(station, location, tag ,depth,  division, subdivision,class, order, family, genus, species  ) %>%
+        summarise(mean.reads = mean(reads), 
+                  replicates = sum(1*(reads >0)))%>%
+        ungroup()
+
+## average for the depth since several tags/samples for the same depth exist
+seda_community.final <- seda_community.final %>%
+        group_by(station, location,depth,  division, subdivision,class, order, family, genus, species  ) %>%
+        summarise(mean.reads = mean(mean.reads), 
+                  replicates = sum(replicates))%>%
+        ungroup()
+#rm(seda_community)
+
+## categorize the taxonomic groups to make comparable with biomonitoring
+seda_community.final_cat <- seda_community.final %>% # merge(seda_taxo, seda_community, by = "ID") %>% 
+          replace(is.na(.),"unknown")%>% 
+          mutate( taxon = ifelse((division =="Streptophyta"& class != "Zygnemophyceae"), "Streptophyta", 
+                          ifelse(division== "Rhizaria", "Rhizaria",
+                          ifelse(division== "Rhodophyta"| class =="Phaeophyceae"| class =="Ulvophyceae" , "Macroalgae",
+                          ifelse(subdivision == "Fungi", "Fungi", 
+                          ifelse(subdivision == "Metazoa", "Metazoa",
+                          ifelse((subdivision == "Dinoflagellata"& class != "Syndiniales") | # 
+                                  division =="Haptophyta" |
+                                  (division == "Chlorophyta"& class !="Ulvophyceae")| division == "Prasinodermophyta" | # chlorophyta
+                                  division =="Cryptophyta"| division =="Kathablepharidacea"| # cryptophyta
+                                  class=="Bacillariophyceae"|
+                                  class== "Coscinodiscophyceae" | class=="Mediophyceae"| class=="Chrysophyceae"|class=="Xanthophyceae"|  #ochrophyta
+                                  (division =="Streptophyta"& class == "Zygnemophyceae")|
+                                  (subdivision == "Gyrista" & class != "Pirsoniales" & class != "Peronosporomycetes" & !is.na(class)& 
+                                               class != "Gyrista_X"		& class != 	"Hyphochytriomyceta" & class !="Phaeophyceae" )|
+                                  subdivision =="Euglenozoa", "Phytoplankton",
+                          ifelse(class=="Opalozoa","Opalozoa",
+                          ifelse(division == "unknown", "Unassigned","Other Protists")))))))))%>%
+        mutate(taxon_phyto = ifelse((subdivision == "Dinoflagellata" & class != "Syndiniales"), "Dinoflagellata",
+                             ifelse(division=="Chlorophyta" | division == "Prasinodermophyta", "Chlorophyta", 
+                             ifelse(division=="Haptophyta", "Haptophyta", 
+                             ifelse(class == "Bacillariophyceae" ,  "Bacillariophyta",
+                             ifelse(class == "MOCH-2" | class == "MOCH-3" | class == "MOCH-5" |class == "Eustigmatophyceae" | class == "Coscinodiscophyceae" | 
+                                    class =="Mediophyceae"|  class =="Xanthophyceae"|class =="Bolidophyceae"| 
+                                    class =="Chrysophyceae"| class =="Chrysomeridophyceae"|class =="Chrysomerophyceae"|
+                                    class =="Dictyochophyceae"|class =="Pelagophyceae", "Ochrophyta",
+                             ifelse((division =="Streptophyta"& class == "Zygnemophyceae"), "Charophyta",
+                             ifelse(division=="Cryptophyta" |division =="Kathablepharidacea", "Cryptophyta", 
+                             ifelse(subdivision=="Euglenozoa", "Euglenozoa", 
+                             ifelse( is.na(class), division, class)))))))))) %>% unique()
+write.table(seda_community.final_cat, 
+            file = file.path(output_path, "Seda_community_data_categorized.tsv"), sep = "\t", row.names = F)
+
+## overview 
+seda_community.final_cat %>%
+  group_by(taxon, taxon_phyto) %>% summarise(sum = n())
+
+### add other protists?
+total.reads.taxo <- seda_community.final_cat %>% # merge(seda_taxo, seda_community, by = "ID") %>% 
+          group_by(station,  depth,  taxon, location)%>% #,division, subdivision, class
+          summarise(total.reads.taxo = sum(mean.reads)) %>%
+        ungroup()
+          
+
+#total.reads.taxo[is.na(total.reads.taxo)] <- "Unassigned"
+total.reads.taxo <- total.reads.taxo %>%
+  group_by(station, location, depth,  taxon) %>% 
+  summarise(total.reads.taxo = mean(total.reads.taxo))%>%
+        ungroup()  
+
+total.reads.taxo <- merge(total.reads.taxo, total.reads, by = c("station", "depth", "location"))
+
+total.reads.taxo$prop.taxon <- (total.reads.taxo$total.reads.taxo / total.reads.taxo$total.reads)*100
+
+#rm(seda_community.final, TOC_data)      
+```
+
+###other protists? --> mainly Syndiniales
+```{r}
+seda_community.final_cat %>% filter(taxon=="Other Protists") %>% ungroup()%>% 
+  select(division, subdivision, class)%>% unique() %>% arrange(division, subdivision, class)
+
+
+other_protists <-seda_community.final_cat %>% filter(taxon=="Other Protists")%>% # merge(seda_taxo, seda_community, by = "ID") %>% 
+          group_by(location, station,  depth, taxon, division, subdivision, class)%>% 
+          summarise(total.reads.taxo = sum(mean.reads))%>%
+          ungroup() %>%
+          left_join(total.reads, by = c("station", "depth",  "location"))%>%
+          mutate(prop.taxon = (total.reads.taxo / total.reads)*100)
+
+# sort to get most prominent classes
+other_protists %>% 
+      arrange(desc(as.numeric(prop.taxon)))
+
+```
+
+### interval data of metabarcoding
+```{r}
+total.reads.taxo <- total.reads.taxo %>%
+  mutate(interval = cut(as.numeric(age), breaks = seq(1790, 2025, by = 5), right = FALSE))  %>% 
+  group_by(location, interval, taxon) %>%
+  summarise(prop.taxon = mean(prop.taxon)) %>%
+  mutate(year1 = gsub("\\[(\\d+),.*", "\\1",as.character(interval))) %>% unique()%>%
+  mutate(year1=as.numeric(year1))
+
+plot_meta_all <- ggplot(total.reads.taxo, aes(x=as.numeric(year1), y=prop.taxon, fill=taxon, group =taxon)) + 
+    geom_area()+ 
+    figure_theme+ 
+    labs(title= "Metabarcoding - Community composition of eukaryotes", x= "5-year intervals CE", y= "Abundance proxy", fill= "Taxon") +
+    facet_wrap(~location, nrow=1, scales = "free_x")+
+    scale_x_continuous(breaks = seq(floor(min(total.reads.taxo$year1)/10)*10, ceiling(max(total.reads.taxo$year1)/10)*10, 20))+ 
+    scale_fill_manual(breaks = euka_taxonomic_groups,
+                        values=euka_colors_taxo)
+
+print(plot_meta_all)
+ggsave(plot_meta_all, file=file.path(output_path, "Metabarcoding_community_comp_over_time__interval.png"), height=8, width=22)
+ggsave(plot_meta_all, file=file.path(output_path, "Metabarcoding_community_comp_over_time__interval.tiff"), height=8, width=22, dpi=600)
+write.table(total.reads.taxo, file=file.path(output_path, "community_comp_over_time__interva.tsv"), row.names = F, sep ="\t")
+```
+## plot for supplementary
+
+
+```{r}
+class_community <-   seda_community.final_cat %>%
+        group_by(station,location, depth, taxon, taxon_phyto, division, subdivision ,class) %>% 
+        summarise(asv.richness = sum(1*(replicates >0)), 
+                  total.read.mean = sum(mean.reads), 
+                  biomass.equivalent = sum(replicates)/asv.richness) %>%
+        group_by(station,location, depth, taxon, taxon_phyto, division, subdivision ,class) %>% 
+        summarise(asv.richness = mean(asv.richness), 
+                  total.read.mean = mean(total.read.mean), 
+                  biomass.equivalent = mean(biomass.equivalent))
+
+
+### extract Dinoflagellates
+class_community.dino  <- class_community %>%
+          filter((subdivision == "Dinoflagellata" & class != "Syndiniales"))
+
+
+## extract phytoplankton
+class_community.phyto  <- class_community %>%
+          filter((subdivision == "Dinoflagellata" & class != "Syndiniales")|  # 
+                 division =="Haptophyta" |
+                 (division == "Chlorophyta"& class !="Ulvophyceae")|
+                 division =="Cryptophyta"|division =="Kathablepharidacea"|
+                 division == "Prasinodermophyta" |
+                 (division =="Streptophyta"& class == "Zygnemophyceae")|
+                 class == "Coscinodiscophyceae" | class =="Mediophyceae"| class=="Chrysophyceae"|class=="Xanthophyceae"|  #Gyrista 
+                 (subdivision == "Gyrista" & class != "Pirsoniales" & class != "Peronosporomycetes" & class!= "unknown" & 
+                       class != "Gyrista_X"		& class != 	"Hyphochytriomyceta" & class !="Phaeophyceae" )|
+                 subdivision =="Euglenozoa" ) 
+
+
+
+##### check impact on syndiniales (parasites)
+class_community.phyto <- class_community.phyto %>% 
+            filter(class != "Syndiniales")%>% ## filter because parasites
+            filter(class!="Mediophyceae") %>%    ## filter because seaice specie/taxa
+            filter(class !="Bacillariophyceae")   ##m filter because spring taxon
+##########################
+
+
+#rename taxo
+class_community.phyto <- class_community.phyto %>% 
+                            group_by(station, depth, division, taxon_phyto, location) %>% 
+                            mutate(taxon =NULL)%>% 
+                            summarise(asv.richness = sum(asv.richness), 
+                                      total.read.mean = sum(total.read.mean))
+
+class_community.phyto <- merge(class_community.phyto, total.reads, by=c("station", "depth",  "location"))
+class_community.phyto$rel.abu <- (class_community.phyto$total.read.mean/class_community.phyto$total.reads) *100
+```
+```{r}
+seda_community.final_cat[seda_community.final_cat =="unknown"] <- NA
+phytoplankton_identified <- seda_community.final_cat%>%
+        filter(taxon =="Phytoplankton")%>%
+        filter(class!= "Bacillariophyceae" & class!="Mediophyceae")%>%
+        mutate(identified= ifelse(!is.na(species), species,
+                            ifelse(!is.na(genus), genus,
+                            ifelse(!is.na(family), family, 
+                            ifelse(!is.na(class), class, subdivision)))))%>%
+        group_by(station,location, depth, division, subdivision ,class, family, genus,species, identified) %>% 
+        summarise(asv.richness = sum(1*(replicates >0)), 
+                  total.read.mean = sum(mean.reads), 
+                  biomass.equivalent = sum(replicates)/asv.richness) %>%
+        left_join(total.reads, by=c("station", "depth",  "location"))%>%
+        mutate(rel.abu = (total.read.mean/total.reads) *100)%>%
+        mutate(interval = cut(as.numeric(age), breaks = seq(1790, 2025, by = 5), right = FALSE))  %>%
+        mutate(year1 = gsub("\\[(\\d+),.*", "\\1",as.character(interval))) %>%
+        mutate(year1= as.numeric(year1))%>%ungroup()
+
+
+## define taxa of interest
+ phytoplankton_identified.plot <- phytoplankton_identified %>% 
+  filter(division== "Stramenopiles"|division== "Alveolata"|division== "Chlorophyta") %>%
+     mutate(class= ifelse(!is.na(class), class, division))%>%
+    mutate(year1= as.numeric(year1))
+
+#  set colors and alpha values
+colors_common <- c("#EE9A49", "darkseagreen4", "#00688B")
+
+color_shades_division <- phytoplankton_identified.plot %>% 
+  group_by(division, class) %>%
+  select(division, class) %>% unique() %>%ungroup()
+
+# arrange is not properly workding
+color_shades_division <- color_shades_division[order(color_shades_division$division, color_shades_division$class),] %>%
+  rename(alpha_name= class, color_name= division) %>%
+  mutate(col_fa= factor(color_name,levels = unique(color_name)),
+         col_no = as.numeric(col_fa))%>%
+  group_by(col_no)%>%
+  mutate(alpha =seq( (1/n()), 1,length.out = n()))%>%
+  select(alpha_name, col_no, alpha)
+
+phytoplankton_identified.plot <- phytoplankton_identified.plot %>% 
+  group_by(location, interval, year1, division, class) %>%
+  summarise(values = sum(rel.abu)) %>% unique()%>%ungroup()
+
+plot_suppl_metaAbu1 <-  ggplot(phytoplankton_identified.plot, 
+                               aes(x=year1, y=values, fill=division, group = class, alpha=factor(class, levels= color_shades_division$alpha_name))) +
+                          geom_area( size=0.2, colour="black")+ 
+                          geom_vline(xintercept=2000, size= 0.7,linetype="dashed")+
+                          labs(title= "Planktonic classes", x= "5-year intervals CE", y= "Abundance proxy", alpha= "Class")+
+                          figure_theme+ 
+                          scale_x_continuous(breaks = seq(min(phytoplankton_identified.plot$year1), max(phytoplankton_identified.plot$year1), 10))+ 
+                          facet_grid(division~location, scales = "free_y")+
+                        # for shades not hues
+                          scale_fill_manual(values = colors_common) +
+                          scale_alpha_manual(values = color_shades_division$alpha)+
+                          ## add colors to legend
+                          guides(fill = guide_none(),
+                                alpha = guide_legend(override.aes = list(fill = colors_common[color_shades_division$col_no]))) 
+print(plot_suppl_metaAbu1)
+ggsave(plot_suppl_metaAbu1, file=file.path(output_path_extra, "Metabarocding__community_comp_over_time__interval_abuClass.png"), height=8, width=16)
+ggsave(plot_suppl_metaAbu1, file=file.path(output_path_extra, "Metabarocding__community_comp_over_time__interval_abuClass.tiff"), height=8, width=16, dpi=600)
+
+```
+
+
+```{r}
+
+intervall_metabarcoding_relabu <- class_community.phyto %>%
+  mutate(interval = cut(as.numeric(age), breaks = seq(1790, 2025, by = 5), right = FALSE))  %>% 
+  group_by(location, interval, taxon_phyto) %>%
+  summarise(values = mean(rel.abu), richness= mean(asv.richness)) %>%
+  mutate(year1 = gsub("\\[(\\d+),.*", "\\1",as.character(interval))) %>% unique()%>% 
+  mutate(year1 =as.numeric(year1))
+
+unique(intervall_metabarcoding_relabu$taxon_phyto)
+
+##plotting full muc relative abundance
+moni_time <- moni_time %>% mutate(start = as.numeric(start))  %>% dplyr::rename(location = MUC)
+  
+plot_supp_meta2 <- intervall_metabarcoding_relabu  %>%
+  ggplot( aes(x=year1, y=values, fill=taxon_phyto, group = taxon_phyto)) +
+    geom_area(color="grey25", size=0.1)+ 
+    geom_vline(data=moni_time, aes(xintercept=start), size= 0.7,linetype="dashed")+
+    labs(title= "Metabarcoding - Community composition of phytoplankton ", x= "5-year intervals CE", y= "Abundance proxy", fill ="Taxon")+
+    figure_theme+ 
+    scale_fill_manual(breaks = taxonomic_groups, values=colors_taxo)+
+    scale_x_continuous(breaks = seq(floor(min(intervall_metabarcoding_relabu$year1)/10)*10, ceiling(max(intervall_metabarcoding_relabu$year1)/10)*10, 20))+ 
+    facet_grid(~location, scales= "free_x")+
+    theme(legend.position = "None")
+print(plot_supp_meta2)
+
+plot <- ggarrange(plot_meta_all, plot_supp_meta2 , plot_supp_moni1, 
+                  nrow = 3, labels = c("A","B", "C"),
+                  heights = c(1,0.8,1),
+                  font.label = list(size = 26, color = "black", face = "bold", family = NULL))
+
+
+print(plot)
+ggsave(plot,  file=file.path(output_path, "community_comp_phytoplankton_ALL.png"), height=14, width=14)
+ggsave(plot,  file=file.path(output_path, "community_comp_phytoplankton_ALL.tiff"), height=14, width=14, dpi=600)
+
+```
+
+# MODELING
+
+## prepare & combine data
+
+```{r}
+total.reads.taxo.original <- total.reads.taxo
+
+
+### prepare data for k determiantion
+total.reads.yearly <- seda_community.final_cat %>% # merge(seda_taxo, seda_community, by = "ID") %>% 
+          rename(organism=taxon)%>%
+          filter(organism == "Phytoplankton") %>%
+          filter(class!= "Bacillariophyceae" & class!="Mediophyceae")
+
+### dinoflagellates in detail
+total.reads.yearly.dino.community <- total.reads.yearly %>% 
+          filter(subdivision == "Dinoflagellata") %>% mutate(organism ="Dinoflagellata") %>%
+          #mutate(family= ifelse(!is.na(family), family,ifelse(! is.na(order), order, class))) %>%
+          group_by(location,  depth,  organism, class, order, family)%>% #,division, subdivision, class
+          summarise(total.reads.taxo = sum(mean.reads)) 
+
+total.reads.yearly.dino.community <-merge(total.reads, total.reads.yearly.dino.community, by = c( "location", "depth")) %>% 
+              #rename("values" = total.reads.taxo) %>% 
+              mutate(method=rep("Metabarcoding", length(age)), age = as.character(age),
+                     values=as.numeric(total.reads.taxo)/as.numeric(total.reads) *100)%>% 
+              mutate(depth  = NULL, station =NULL, 
+                     total.reads.taxo=NULL,total.reads=NULL, TOC= NULL) 
+
+### dinoflagellates & phytonplanton in general
+total.reads.yearly.dino <- total.reads.yearly %>% 
+          filter(subdivision == "Dinoflagellata") %>% mutate(organism ="Dinoflagellata") %>%
+          group_by(location,  depth, organism)%>% #,division, subdivision, class
+          summarise(total.reads.taxo = sum(mean.reads)) 
+
+total.reads.yearly.phyto <- total.reads.yearly %>%
+          group_by(location, depth, organism)%>% #,division, subdivision, class
+          summarise(total.reads.taxo = sum(mean.reads)) 
+
+total.reads.yearly <- rbind(total.reads.yearly.dino, total.reads.yearly.phyto)
+rm(total.reads.yearly.dino, total.reads.yearly.phyto)
+
+total.reads.yearly <-merge(total.reads, total.reads.yearly, by = c("location", "depth")) %>% 
+              mutate(method=rep("Metabarcoding", length(age)), age = as.character(age),
+                     values=as.numeric(total.reads.taxo)/as.numeric(total.reads) *100)%>% 
+              mutate( depth  = NULL, station =NULL, 
+                     total.reads.taxo=NULL,total.reads=NULL, TOC= NULL) 
+              
+#### Biomonitoring data 
+ices_data_yearly <- summed_ices_data %>% pivot_wider( names_from = phylum, values_from = summed_value, values_fill = 0 ) %>% 
+            mutate( Phytoplankton = Chlorophyta+Cryptophyta+Dinoflagellata+Haptophyta+Ochrophyta+Charophyta) %>% 
+            pivot_longer(!c(MUC, Year), names_to = "organism", values_to = "total.values") %>% 
+            filter(organism == "Phytoplankton"|organism =="Dinoflagellata") %>% # organism=="Phytoplankton_Cyano"
+            rename( "location" = MUC, "age" = Year)%>% mutate(method= rep("Biomonitoring", length(interval))) #"Biomonitoring, count data"
+
+
+max_counts <- ices_data_yearly %>%
+  group_by(organism, location) %>%
+  summarize(overall_max_count = max(total.values, na.rm = TRUE))
+
+ices_data_yearly_norm <- left_join(ices_data_yearly, max_counts, by = c("organism", "location"))
+
+ices_data_yearly_norm <- ices_data_yearly_norm %>% mutate(values= (total.values/overall_max_count)*100)%>%
+                                         mutate(total.values = NULL, overall_max_count= NULL)
+
+##### Biomarker data
+egb_gof_biomarker.yearly <- egb_gof_biomarker %>% mutate(interval=NULL) %>% pivot_longer(!c(age, location), names_to = "method", values_to = "real.conc")%>%
+  mutate(organism = ifelse(grepl("Dino", method),"Dinoflagellata", "Phytoplankton" ))%>% 
+  mutate(location = as.factor(location), method = as.factor(method), organism = as.factor(organism), age = as.character(age))
+
+
+max_counts <- egb_gof_biomarker.yearly %>%
+  group_by(method, location) %>%
+  summarize(overall_max_conc = max(real.conc, na.rm = TRUE))
+
+egb_gof_biomarker.yearly_norm <- left_join(egb_gof_biomarker.yearly, max_counts, by = c("method", "location"))
+
+egb_gof_biomarker.yearly_norm <- egb_gof_biomarker.yearly_norm %>% mutate(values= (real.conc/overall_max_conc)*100)%>%
+                                         mutate(real.conc = NULL, overall_max_conc= NULL)
+
+### combine all three datasets normalized
+total_data.yearly_norm <- rbind( ices_data_yearly_norm, egb_gof_biomarker.yearly_norm)
+total_data.yearly_norm <- rbind( total_data.yearly_norm, total.reads.yearly)
+total_data.yearly_norm <- total_data.yearly_norm %>% mutate( location2 = ifelse(location == "Eastern Gotland Basin", "EGB", 
+                                                               ifelse(location == "Landsort Deep", "LD",
+                                                               ifelse(location == "Gulf of Finland", "GoF", NA))))
+
+### orginal data 
+egb_gof_biomarker.yearly <- egb_gof_biomarker.yearly %>%
+      dplyr::rename(values=real.conc)
+
+ices_data_yearly <- ices_data_yearly %>%
+  dplyr::rename(values=total.values )
+
+total_data.yearly_real<- rbind( ices_data_yearly, egb_gof_biomarker.yearly)
+total_data.yearly_real <- rbind( total_data.yearly_real, total.reads.yearly)
+total_data.yearly_real <- total_data.yearly_real %>% mutate( location2 = ifelse(location == "Eastern Gotland Basin", "EGB", 
+                                                               ifelse(location == "Landsort Deep", "LD",
+                                                               ifelse(location == "Gulf of Finland", "GoF", NA))))
+```
+note: Gymnodiniaceae most abund ant after NA
+```{r}
+total.reads.yearly.dino.community <- total.reads.yearly.dino.community %>%mutate(age= as.numeric(age))  
+colnames(total.reads.yearly.dino.community)
+plot_supp_meta3 <- total.reads.yearly.dino.community %>% 
+  group_by(location, age, organism, class, order)%>%
+  summarise(values=sum(values))%>%
+  ggplot( aes(x=age, y=values,  group =order, fill =order))+
+  geom_area(aes())+ figure_theme + facet_wrap( ~ location) + 
+  geom_vline(xintercept=2000, size= 0.7,linetype="dashed")+
+  scale_x_continuous(breaks = seq(floor(min(total.reads.yearly.dino.community$age)/10)*10, ceiling(max(total.reads.yearly.dino.community$age)/10)*10, 20))+ 
+  labs( title= "Relative abundance of dinoflagellate orders over time", x= "Years CE", y= "Abundance proxy", fill ="Order")
+print(plot_supp_meta3)
+#ggsave(plot_supp_meta3, file=file.path(output_path_extra, "Metabarcoding_dino_communities_classes__MUC.png"), height=7, width=17)
+
+plot_supp_meta4 <- total.reads.yearly.dino.community %>% 
+  select(- order)%>%
+  group_by(location, age, organism, class, family)%>%
+  summarise(values=sum(values))%>%
+  ggplot( aes(x=age, y=values,  group =family, fill =family))+
+  geom_area()+ figure_theme + facet_wrap( ~ location) + 
+  geom_vline(xintercept=2000, size= 0.7,linetype="dashed")+
+  scale_x_continuous(breaks = seq(floor(min(total.reads.yearly.dino.community$age)/10)*10, ceiling(max(total.reads.yearly.dino.community$age)/10)*10, 20))+ 
+  labs( title= "Relative abundance of dinoflagellate families over time", x= "Years CE", y= "Abundance proxy", fill ="Family")
+
+print(plot_supp_meta4)
+#ggsave(plot_supp_meta4, file=file.path(output_path_extra, "Metabarcoding_dino_communities_GymnodiniaceaeafterNA__MUC.png"), height=7, width=17)
+rm(total.reads.yearly.dino.community)
+```
+####
+# save data for next steps 
+```{r}
+save(total_data.yearly_norm, file=file.path(workspace,"Data_allApproach__for_modelling.RData"))
+save(total_data.yearly_real, file=file.path(workspace,"Data_allApproach__for_modelling__real.RData"))
+save.image(file=file.path(workspace,"WorkSpace_Mainscript.RData"))
+
+```
+
+
+##Create Suppl
+```{r}
+
+plot_suppl_meta <- ggarrange(  plot_supp_meta3, plot_supp_meta4, nrow = 2, labels = c("A","B"),
+           font.label = list(size = 26, color = "black", face = "bold", family = NULL))
+print(plot_suppl_meta)
+
+
+ggsave(plot_suppl_meta,  file=file.path(output_path, "Supplementary__metabarcoding_results.png"), height=16, width=18)
+ggsave(plot_suppl_meta,  file=file.path(output_path, "Supplementary__metabarcoding_results.tiff"), height=16, width=18, dpi=600)
+
+```
+
+
