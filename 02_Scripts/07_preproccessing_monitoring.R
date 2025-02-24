@@ -5,11 +5,11 @@ library("worrms")
 library(tidyverse)
 
 ### ## ## ## ## ## ## ## ## ## ## ## # Biomonitoring
-setwd("/Users/juliane/Documents/00_Work_SGN/00_PhytoArk/XX_PAPERS/2025_Comparison_Paper__relAbudance/")
+#setwd("/PATH/TO/02_Scripts_folder")
 source("02_Scripts/00_R_functions.R") # read file with functions
 
 #input original ices data
-path = "/Users/juliane/Documents/00_Work_SGN/00_PhytoArk/00_ICES/ICES_Phytoplankton"
+path = "00_ICES/ICES_Phytoplankton"
 ices_file <- "DomePhytoplankton_Data_0420454538.csv"
 
 ## output path
