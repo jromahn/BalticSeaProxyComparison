@@ -1,5 +1,5 @@
 ---
-title: Diagnosis script fro ObiTools4 for Euka02
+title: Diagnosis & cleaning script fro ObiTools4 for Euka02
 author: Juliane Romahn
 date: September 14, 2023
 output: html_document
@@ -17,13 +17,13 @@ library(knitr)
 ```{r setup}
 # has to be in setup & is only correct outside of the setup
 require("knitr")
-opts_knit$set(root.dir = '/Users/juliane/Documents/00_Work_SGN/00_PhytoArk/XX_PAPERS/2025_Comparison_Paper__relAbudance')
+#opts_knit$set(root.dir = '#setwd("/PATH/TO/02_Scripts_folder")')
 ```
 
 ```{r}
 
 source("02_Scripts/00_R_functions.R") # read file with functions
-path <- "/Users/juliane/Documents/00_Work_SGN/00_PhytoArk/02_Metabarcoding/Bioinformatic_ObiTools4/PhytoArk_Euka02_2024_MUC_results"
+path <- "PhytoArk_Euka02_2024_MUC_results"
 community_file <- "8_PhytoArk_Euka02_2024_final__community__MUC.RData"
 
 # metadata
