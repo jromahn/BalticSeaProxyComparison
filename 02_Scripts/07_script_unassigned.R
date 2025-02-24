@@ -4,7 +4,7 @@ library(vegan)
 library(taxonomizr)
 
 
-setwd("/Users/Juliane/Documents/00_Work_SGN/00_PhytoArk/XX_PAPERS/2024_Comparison_Paper__relAbudance/")
+#setwd("/PATH/TO/02_Scripts_folder")
 source("02_Scripts/00_R_functions.R") # read file with functions
 
 output_path <- "04_exploration_july24"
