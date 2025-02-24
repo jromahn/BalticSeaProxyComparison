@@ -5,7 +5,7 @@ library(phylotools)
 
 
 
-setwd("/Users/Juliane/Documents/00_Work_SGN/00_PhytoArk/XX_PAPERS/2025_Comparison_Paper__relAbudance/")
+#setwd("/PATH/TO/02_Scripts_folder")
 print("Preproccessing starts")
 
 # output data
