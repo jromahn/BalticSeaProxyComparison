@@ -166,3 +166,10 @@ GAM modeling and correlation statistics of the GAM modelled proxy data.
 Input: 
 - Data_allApproach__for_modelling.RData                                      #(08_MAIN_analysis.Rmd)
   
+Output:
+- Parameters_GAM_modeling.tsv
+- Correlation_results_plots.png
+- Method_comparison__biomarker_metbarcoding__MUC__GAM_all.png
+- Method_comparison__biomarker_metbarcoding__MUC__GAM_all.tsv
+- Method_comparison__biomarker_metbarcoding__MUC__measurements_all.tsv
+- Correlation_results_as_table_of_gam_n_interval__overview.tsv
