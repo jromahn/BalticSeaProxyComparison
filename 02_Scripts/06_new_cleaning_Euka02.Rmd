@@ -17,7 +17,7 @@ library(knitr)
 ```{r setup}
 # has to be in setup & is only correct outside of the setup
 require("knitr")
-#opts_knit$set(root.dir = '#setwd("/PATH/TO/02_Scripts_folder")')
+#opts_knit$set(root.dir = '/PATH/TO/02_Scripts_folder')
 ```
 
 ```{r}
