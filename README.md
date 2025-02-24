@@ -59,6 +59,8 @@ Overview of all R scripts within the 02_Scripts folder. R Scripts are tested for
 
 R script containing most relevant R functions of the various scripts.
 
+Important: the scripts are all written that they are execute outside/ one level above the 02_Scripts folder. Folder names have to be probably adjusted to the path, in which the raw data/ meta data are located.
+
 ### 05_Create_SpeciesTable.R
 
 R script to convert the mothur taxonomy output into a species table, necessary for the following steps.
