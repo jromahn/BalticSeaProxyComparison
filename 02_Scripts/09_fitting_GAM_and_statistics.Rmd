@@ -32,7 +32,7 @@ library(Manu)
 
 ```{r setup}
 # has to be in setup & is only correct outside of the setup
-knitr::opts_knit$set(root.dir = '/Users/juliane/Documents/00_Work_SGN/00_PhytoArk/XX_PAPERS/2025_Comparison_Paper__relAbudance/')
+knitr::opts_knit$set(root.dir = '/PATH/TO/02_Scripts_folder')
 getwd()
 ```
 
