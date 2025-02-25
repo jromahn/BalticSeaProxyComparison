@@ -33,10 +33,10 @@ All necessary data to rerun the analsis is uploaded and public available on FigS
 | Filname in R Script  | FigShare DOI |
 | ------------- | ------------- |
 | EMB262_PhytoArk_MUC__detailed_metadata.tsv  | [10.6084/m9.figshare.28457471.v1](https://doi.org/10.6084/m9.figshare.28457471.v1)  |
-| Supplementary_Biomarker_data_GoF_EGB.tsv  | [10.6084/m9.figshare.28457492.v1](https://doi.org/10.6084/m9.figshare.28457492.v1)  |
+| Supplementary_Biomarker_data_GoF_EGB.tsv  | [10.6084/m9.figshare.28457492.v2](https://doi.org/10.6084/m9.figshare.28457492.v2)  |
 | 8_PhytoArk_Euka02_2024_final__community__MUC.RData | [10.6084/m9.figshare.28457474.v1](https://doi.org/10.6084/m9.figshare.28457474.v1) | 
 | 8_PhytoArk_Euka02_2024_final_community_MUC__mothur_sequences.fasta | [10.6084/m9.figshare.28457495.v1](https://doi.org/10.6084/m9.figshare.28457495.v1) |
-| 8_PhytoArk_Euka02_2024_final_community_MUC__mothur_sequences.0_SSU_mothur__concatinated.wang__tax.tx | [10.6084/m9.figshare.28457483.v1](https://doi.org/10.6084/m9.figshare.28457483.v1) |
+| 8_PhytoArk_Euka02_2024_final_community_MUC__mothur_sequences.0_SSU_mothur__concatinated.wang__tax.tx | [10.6084/m9.figshare.28457483.v2](https://doi.org/10.6084/m9.figshare.28457483.v2) |
 
 
 ## Script Overview 
